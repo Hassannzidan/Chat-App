@@ -14,6 +14,14 @@ const io = new Server(server, {
     },
 });
 
+io.on('connection', (socket)=>{
+    console.log(`User connected: ${socket.id}`);
+
+    socket.on('disconnect', ()=>{
+        console.log(`User disconnected: ${socket.id}`);
+    });
+})
+
 
 server.listen(3001, () => {
     console.log('Server is running on port 3000');

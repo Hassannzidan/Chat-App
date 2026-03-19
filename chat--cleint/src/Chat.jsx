@@ -15,11 +15,17 @@ const getAuthorPaletteIndex = (author) => {
   return Math.abs(n) % 6;
 };
 
+const TYPING_DEBOUNCE_MS = 80;
+const STOP_TYPING_AFTER_MS = 1500;
+
 export const Chat = ({ socket, username, room, onLeaveRoom }) => {
   const [currentMessage, setCurrentMessage] = useState("");
   const [messageList, setMessageList] = useState([]);
+  const [typingUsers, setTypingUsers] = useState([]);
   const messagesEndRef = useRef(null);
   const bodyRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+  const stopTypingTimeoutRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -29,9 +35,40 @@ export const Chat = ({ socket, username, room, onLeaveRoom }) => {
     scrollToBottom();
   }, [messageList]);
 
+  const emitTyping = () => {
+    socket.emit("typing", { room, username });
+  };
+
+  const emitStopTyping = () => {
+    socket.emit("stop_typing", { room, username });
+  };
+
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    setCurrentMessage(value);
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    if (stopTypingTimeoutRef.current) clearTimeout(stopTypingTimeoutRef.current);
+
+    if (value.length > 0) {
+      typingTimeoutRef.current = setTimeout(() => {
+        emitTyping();
+      }, TYPING_DEBOUNCE_MS);
+      stopTypingTimeoutRef.current = setTimeout(() => {
+        emitStopTyping();
+      }, STOP_TYPING_AFTER_MS);
+    } else {
+      emitStopTyping();
+    }
+  };
+
   const sendMessage = () => {
     const msg = currentMessage.trim();
     if (!msg) return;
+
+    if (stopTypingTimeoutRef.current) clearTimeout(stopTypingTimeoutRef.current);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    emitStopTyping();
 
     const messageData = {
       room,
@@ -49,9 +86,20 @@ export const Chat = ({ socket, username, room, onLeaveRoom }) => {
     const handleReceive = (data) => {
       setMessageList((prev) => [...prev, data]);
     };
+    const handleUserTyping = ({ username: u }) => {
+      setTypingUsers((prev) => (prev.includes(u) ? prev : [...prev, u]));
+    };
+    const handleUserStopTyping = ({ username: u }) => {
+      setTypingUsers((prev) => prev.filter((n) => n !== u));
+    };
+
     socket.on("receive_message", handleReceive);
+    socket.on("user_typing", handleUserTyping);
+    socket.on("user_stop_typing", handleUserStopTyping);
     return () => {
       socket.off("receive_message", handleReceive);
+      socket.off("user_typing", handleUserTyping);
+      socket.off("user_stop_typing", handleUserStopTyping);
     };
   }, [socket]);
 
@@ -100,13 +148,30 @@ export const Chat = ({ socket, username, room, onLeaveRoom }) => {
           <div ref={messagesEndRef} />
         </div>
 
+        <div className="chat-typing-bar">
+          {typingUsers.length > 0 && (
+            <div className="typing-indicator">
+              <span className="typing-dots" aria-hidden="true">
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+              </span>
+              <span className="typing-label">
+                {typingUsers.length === 1
+                  ? `${typingUsers[0]} is typing`
+                  : `${typingUsers.join(", ")} are typing`}
+              </span>
+            </div>
+          )}
+        </div>
+
         <footer className="chat-footer">
           <input
             type="text"
             className="chat-input"
             placeholder="Type a message..."
             value={currentMessage}
-            onChange={(e) => setCurrentMessage(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
             aria-label="Message input"
           />

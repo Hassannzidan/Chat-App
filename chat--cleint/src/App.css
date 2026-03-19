@@ -35,6 +35,11 @@ body {
   justify-content: center;
   padding: 1.5rem;
   position: relative;
+  transition: padding 0.35s ease;
+}
+
+.App--in-room .join-card {
+  display: none;
 }
 
 /* Animated gradient mesh background */

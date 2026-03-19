@@ -18,7 +18,10 @@ io.on('connection', (socket)=>{
     console.log(`User connected: ${socket.id}`);
     socket.on('join_room', (data)=>{
         socket.join(data);
-        console.log(`User ${data.username} joined room ${data.room}`);
+        console.log(`User : ${data.username} joined \n room : ${data.room} \n id : ${socket.id}`);
+    });
+    socket.on('send_message', (data)=>{
+        console.log(data);
     });
 
     socket.on('disconnect', ()=>{
